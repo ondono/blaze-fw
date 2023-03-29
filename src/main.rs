@@ -9,42 +9,34 @@ use panic_probe as _;
 
 // USB Device support
 use usb_device::{class_prelude::*, prelude::*};
-
 // USB PicoTool Class Device support
 use usbd_picotool_reset::PicoToolReset;
 
-// Provide an alias for our BSP so we can switch targets quickly.
-// Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
-use rp_pico::{
-    entry,
-    hal::{self, pac},
-    XOSC_CRYSTAL_FREQ,
-};
+// The linker will place this boot block at the start of our program image. We
+/// need this to help the ROM bootloader get our code up and running.
+#[link_section = ".boot2"]
+#[no_mangle]
+#[used]
+pub static BOOT2_FIRMWARE: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 
-use rp_pico::hal::{clocks::*, *};
-
-//use bsp::hal::{
-//    clocks::{init_clocks_and_plls, Clock},
-//    pac,
-//    sio::Sio,
-//    watchdog::Watchdog,
-//};
+use embedded_hal::digital::v2::OutputPin;
+use hal::{clocks::*, entry, pac, *};
+use rp2040_hal as hal;
 
 #[entry]
 fn main() -> ! {
     info!("Program start");
-
     // get object singleton
     let mut pac = pac::Peripherals::take().unwrap();
-
+    let core = pac::CorePeripherals::take().unwrap();
     // configure a watchdog
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
+    let sio = hal::Sio::new(pac.SIO);
 
-    // External high-speed crystal on the pico board is 12Mhz
-    let external_xtal_freq_hz = 12_000_000u32;
+    let xosc_crystal_freq = 12_000_000;
 
     let clocks = init_clocks_and_plls(
-        external_xtal_freq_hz,
+        xosc_crystal_freq,
         pac.XOSC,
         pac.CLOCKS,
         pac.PLL_SYS,
@@ -55,18 +47,7 @@ fn main() -> ! {
     .ok()
     .unwrap();
 
-    #[cfg(feature = "rp2040-hal/rp2040-e5")]
-    {
-        let sio = hal::Sio::new(pac.SIO);
-        let _pins = rp_pico::Pins::new(
-            pac.IO_BANK0,
-            pac.PADS_BANK0,
-            sio.gpio_bank0,
-            &mut pac.RESETS,
-        );
-    }
-
-    // Set up the USB driver
+    //Set up the USB driver
     let usb_bus = UsbBusAllocator::new(hal::usb::UsbBus::new(
         pac.USBCTRL_REGS,
         pac.USBCTRL_DPRAM,
@@ -75,29 +56,43 @@ fn main() -> ! {
         &mut pac.RESETS,
     ));
 
-    // Set up the USB PicoTool Class Device driver
+    //Set up the USB PicoTool Class Device driver
     let mut picotool: PicoToolReset<_> = PicoToolReset::new(&usb_bus);
 
     // Create a USB device RPI Vendor ID and on of these Product ID:
     // https://github.com/raspberrypi/picotool/blob/master/picoboot_connection/picoboot_connection.c#L23-L27
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x2e8a, 0x000a))
-        .manufacturer("Fake company")
-        .product("Picotool port")
-        .serial_number("TEST")
+        .manufacturer("In the loop")
+        .product("picotool reset port")
+        .serial_number("00001")
         .device_class(0) // from: https://www.usb.org/defined-class-codes
         .build();
 
-    //let mut led_pin = pins.gpio21.into_push_pull_output();
+    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
 
+    let pins = hal::gpio::Pins::new(
+        pac.IO_BANK0,
+        pac.PADS_BANK0,
+        sio.gpio_bank0,
+        &mut pac.RESETS,
+    );
+
+    let mut led_pin = pins.gpio21.into_push_pull_output();
+
+    let mut count = 0;
+    let mut state = false;
     loop {
         usb_dev.poll(&mut [&mut picotool]);
-        // info!("on!");
-        // led_pin.set_high().unwrap();
-        // delay.delay_ms(500);
-        // info!("off!");
-        // led_pin.set_low().unwrap();
-        // delay.delay_ms(500);
+        if count > 500 {
+            count = 0;
+            if state {
+                led_pin.set_low().unwrap();
+            } else {
+                led_pin.set_high().unwrap();
+            }
+            state = !state;
+        }
+        count += 1;
+        delay.delay_ms(1);
     }
 }
-
-// End of file

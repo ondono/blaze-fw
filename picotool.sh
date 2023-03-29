@@ -11,7 +11,7 @@ set -eu
 
 TARGET="$(grep "^target = " ./.cargo/config.toml | head -n 1 | awk -F'\"' '{print $2}')"
 PROJECT="$(grep "^name = " ./Cargo.toml | head -n 1 | awk -F'\"' '{print $2}')"
-ELF_FILE="./target/$TARGET/release/$PROJECT"
+ELF_FILE="./target/$TARGET/debug/$PROJECT"
 
 cp -v "$ELF_FILE" "$ELF_FILE.elf"
 picotool load "$ELF_FILE.elf" -f

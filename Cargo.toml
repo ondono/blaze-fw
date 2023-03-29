@@ -1,11 +1,11 @@
 [package]
 edition = "2021"
-name = "rp2040-project-template"
-version = "0.1.0"
+name = "blaze-fw"
+version = "0.0.1"
 
 [dependencies]
-cortex-m = "0.7"
-cortex-m-rt = "0.7"
+cortex-m = { version="0.7", optional = false}
+cortex-m-rt =  { version="0.7", optional = true}
 embedded-hal = { version = "0.2.5", features = ["unproven"] }
 
 defmt = "0.3"
@@ -13,7 +13,7 @@ defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 
 # We're using a Pico by default on this template
-rp-pico = "0.7"
+#rp-pico = "0.7"
 usb-device = "0.2.9"
 usbd-picotool-reset = "0.1.1"
 
@@ -23,7 +23,33 @@ usbd-picotool-reset = "0.1.1"
 # If you're not going to use a Board Support Package you'll need these:
 rp2040-hal = { version="0.8", features=["rt", "critical-section-impl"] }
 panic-halt = "0.2.0"
-# rp2040-boot2 = "0.2"
+rp2040-boot2 = {version = "0.2", optional = true}
+
+[features]
+# This is the set of features we enable by default
+default = ["boot2", "rt", "critical-section-impl", "rom-func-cache"]
+
+# critical section that is safe for multicore use
+critical-section-impl = ["rp2040-hal/critical-section-impl"]
+
+# 2nd stage bootloaders for rp2040
+boot2 = ["rp2040-boot2"]
+
+# Minimal startup / runtime for Cortex-M microcontrollers
+rt = ["cortex-m-rt","rp2040-hal/rt"]
+
+# This enables a fix for USB errata 5: USB device fails to exit RESET state on busy USB bus.
+# Only required for RP2040 B0 and RP2040 B1, but it also works for RP2040 B2 and above
+rp2040-e5 = ["rp2040-hal/rp2040-e5"]
+
+# Memoize(cache) ROM function pointers on first use to improve performance
+rom-func-cache = ["rp2040-hal/rom-func-cache"]
+
+# Disable automatic mapping of language features (like floating point math) to ROM functions
+disable-intrinsics = ["rp2040-hal/disable-intrinsics"]
+
+# This enables ROM functions for f64 math that were not present in the earliest RP2040s
+rom-v2-intrinsics = ["rp2040-hal/rom-v2-intrinsics"]
 
 # cargo build/run
 [profile.dev]
