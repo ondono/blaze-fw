@@ -12,6 +12,8 @@ use usb_device::{class_prelude::*, prelude::*};
 // USB PicoTool Class Device support
 use usbd_picotool_reset::PicoToolReset;
 
+use usbd_serial::SerialPort;
+
 // The linker will place this boot block at the start of our program image. We
 /// need this to help the ROM bootloader get our code up and running.
 #[link_section = ".boot2"]
@@ -56,6 +58,8 @@ fn main() -> ! {
         &mut pac.RESETS,
     ));
 
+    let mut serial = SerialPort::new(&usb_bus);
+
     //Set up the USB PicoTool Class Device driver
     let mut picotool: PicoToolReset<_> = PicoToolReset::new(&usb_bus);
 
@@ -82,7 +86,33 @@ fn main() -> ! {
     let mut count = 0;
     let mut state = false;
     loop {
-        usb_dev.poll(&mut [&mut picotool]);
+        usb_dev.poll(&mut [&mut picotool, &mut serial]);
+        let mut buf = [0u8; 64];
+        match serial.read(&mut buf) {
+            Err(_e) => {
+                // nothing
+            }
+            Ok(0) => {
+                // nothing
+            }
+            Ok(count) => {
+                // Convert to upper case
+                buf.iter_mut().take(count).for_each(|b| {
+                    b.make_ascii_uppercase();
+                });
+                // Send back to the host
+                let mut wr_ptr = &buf[..count];
+                while !wr_ptr.is_empty() {
+                    match serial.write(wr_ptr) {
+                        Ok(len) => wr_ptr = &wr_ptr[len..],
+                        // On error, just drop unwritten data.
+                        // One possible error is Err(WouldBlock), meaning the USB
+                        // write buffer is full.
+                        Err(_) => break,
+                    };
+                }
+            }
+        }
         if count > 500 {
             count = 0;
             if state {

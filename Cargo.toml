@@ -24,6 +24,7 @@ usbd-picotool-reset = "0.1.1"
 rp2040-hal = { version="0.8", features=["rt", "critical-section-impl"] }
 panic-halt = "0.2.0"
 rp2040-boot2 = {version = "0.2", optional = true}
+usbd-serial = "0.1.1"
 
 [features]
 # This is the set of features we enable by default
@@ -36,7 +37,7 @@ critical-section-impl = ["rp2040-hal/critical-section-impl"]
 boot2 = ["rp2040-boot2"]
 
 # Minimal startup / runtime for Cortex-M microcontrollers
-rt = ["cortex-m-rt","rp2040-hal/rt"]
+rt = ["cortex-m-rt", "rp2040-hal/rt"]
 
 # This enables a fix for USB errata 5: USB device fails to exit RESET state on busy USB bus.
 # Only required for RP2040 B0 and RP2040 B1, but it also works for RP2040 B2 and above
